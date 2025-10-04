@@ -1,0 +1,40 @@
+{
+  "name": "vk-events-bot",
+  "version": "1.0.0",
+  "description": "VK Bot for events management with Supabase integration",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "build": "echo 'No build step needed'",
+    "setup": "node scripts/setup-bot.js",
+    "auto-setup": "node auto-setup.js",
+    "check": "node check-config.js",
+    "cleanup": "node scripts/cleanup-ports.js 3000",
+    "dev:clean": "npm run cleanup && npm run dev",
+    "tunnel": "node start-with-tunnel.js",
+    "tunnel-fixed": "node start-vk-tunnel-fixed.js",
+    "local": "node local-test.js",
+    "env": "node check-env.js",
+    "setup-db": "node setup-database-simple.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3",
+    "vk-io": "^4.0.0-rc.30"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "vk",
+    "bot",
+    "events",
+    "supabase"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

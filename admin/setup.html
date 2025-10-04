@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VK Events Bot - Автоматическая настройка</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #f5f5f5;
+        color: #333;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .header {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-right: 10px;
+      }
+
+      button:hover {
+        background: #0056b3;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .alert {
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+      }
+
+      .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .alert-info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      .step {
+        margin-bottom: 20px;
+        padding: 15px;
+        border: 1px solid #eee;
+        border-radius: 4px;
+      }
+
+      .step.completed {
+        background: #d4edda;
+        border-color: #c3e6cb;
+      }
+
+      .step.error {
+        background: #f8d7da;
+        border-color: #f5c6cb;
+      }
+
+      .step-title {
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .step-description {
+        color: #666;
+        font-size: 14px;
+      }
+
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+      }
+
+      .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #007bff;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .back-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #007bff;
+        text-decoration: none;
+      }
+
+      .back-link:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <a href="/admin" class="back-link">← Назад к админ-панели</a>
+
+      <div class="header">
+        <h1>🤖 Автоматическая настройка VK бота</h1>
+        <p>Настройте бота для вашего сообщества в несколько кликов</p>
+      </div>
+
+      <div id="alertContainer"></div>
+
+      <div class="card">
+        <h2>📋 Информация для настройки</h2>
+
+        <div class="form-group">
+          <label for="groupId">ID группы ВКонтакте:</label>
+          <input
+            type="number"
+            id="groupId"
+            placeholder="Например: 123456789"
+            required
+          />
+          <small>Найдите ID группы в настройках сообщества</small>
+        </div>
+
+        <div class="form-group">
+          <label for="webhookUrl">URL webhook:</label>
+          <input
+            type="url"
+            id="webhookUrl"
+            placeholder="https://your-bot.vercel.app/webhook"
+            required
+          />
+          <small>URL вашего бота для получения сообщений</small>
+        </div>
+
+        <div class="form-group">
+          <label for="confirmationToken">Токен подтверждения:</label>
+          <input
+            type="text"
+            id="confirmationToken"
+            placeholder="Любая строка для подтверждения"
+            required
+          />
+          <small>Любая строка, которую будет возвращать ваш сервер</small>
+        </div>
+
+        <button onclick="checkGroupInfo()" id="checkButton">
+          Проверить группу
+        </button>
+        <button onclick="setupBot()" id="setupButton" disabled>
+          Настроить бота
+        </button>
+      </div>
+
+      <div id="setupSteps" style="display: none">
+        <h2>🔄 Процесс настройки</h2>
+
+        <div class="step" id="step1">
+          <div class="step-title">1. Получение информации о группе</div>
+          <div class="step-description">
+            Проверяем доступ к группе и получаем информацию
+          </div>
+        </div>
+
+        <div class="step" id="step2">
+          <div class="step-title">2. Настройка Callback API</div>
+          <div class="step-description">
+            Настраиваем получение сообщений от ВКонтакте
+          </div>
+        </div>
+
+        <div class="step" id="step3">
+          <div class="step-title">3. Проверка прав бота</div>
+          <div class="step-description">
+            Проверяем необходимые права для работы бота
+          </div>
+        </div>
+
+        <div class="step" id="step4">
+          <div class="step-title">4. Создание меню бота</div>
+          <div class="step-description">
+            Создаем удобное меню для пользователей
+          </div>
+        </div>
+
+        <div class="step" id="step5">
+          <div class="step-title">5. Обновление описания группы</div>
+          <div class="step-description">
+            Добавляем информацию о боте в описание
+          </div>
+        </div>
+      </div>
+
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>Выполняется настройка...</div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE = window.location.origin;
+      let groupInfo = null;
+
+      // Проверить информацию о группе
+      async function checkGroupInfo() {
+        const groupId = document.getElementById("groupId").value;
+
+        if (!groupId) {
+          showAlert("Введите ID группы", "error");
+          return;
+        }
+
+        const button = document.getElementById("checkButton");
+        button.disabled = true;
+        button.textContent = "Проверка...";
+
+        try {
+          const response = await fetch(`${API_BASE}/api/group-info/${groupId}`);
+          const result = await response.json();
+
+          if (result.success) {
+            groupInfo = result.group;
+            showAlert(
+              `Группа найдена: "${groupInfo.name}" (${groupInfo.member_count} участников)`,
+              "success"
+            );
+            document.getElementById("setupButton").disabled = false;
+          } else {
+            showAlert(`Ошибка: ${result.error}`, "error");
+          }
+        } catch (error) {
+          console.error("Error checking group:", error);
+          showAlert("Ошибка проверки группы", "error");
+        } finally {
+          button.disabled = false;
+          button.textContent = "Проверить группу";
+        }
+      }
+
+      // Настроить бота
+      async function setupBot() {
+        const groupId = document.getElementById("groupId").value;
+        const webhookUrl = document.getElementById("webhookUrl").value;
+        const confirmationToken =
+          document.getElementById("confirmationToken").value;
+
+        if (!groupId || !webhookUrl || !confirmationToken) {
+          showAlert("Заполните все поля", "error");
+          return;
+        }
+
+        // Показываем шаги настройки
+        document.getElementById("setupSteps").style.display = "block";
+        document.getElementById("loading").style.display = "block";
+
+        const button = document.getElementById("setupButton");
+        button.disabled = true;
+        button.textContent = "Настройка...";
+
+        try {
+          const response = await fetch(`${API_BASE}/api/setup-bot`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              groupId: parseInt(groupId),
+              webhookUrl,
+              confirmationToken,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            showAlert("Бот успешно настроен! 🎉", "success");
+            updateSteps(result.results);
+          } else {
+            showAlert(`Ошибка настройки: ${result.error}`, "error");
+            updateSteps(result.results, true);
+          }
+        } catch (error) {
+          console.error("Error setting up bot:", error);
+          showAlert("Ошибка настройки бота", "error");
+        } finally {
+          button.disabled = false;
+          button.textContent = "Настроить бота";
+          document.getElementById("loading").style.display = "none";
+        }
+      }
+
+      // Обновить статус шагов
+      function updateSteps(results, hasError = false) {
+        const steps = [
+          { id: "step1", result: results.groupInfo },
+          { id: "step2", result: results.callbackAPI },
+          { id: "step3", result: results.permissions },
+          { id: "step4", result: results.menu },
+          { id: "step5", result: results.description },
+        ];
+
+        steps.forEach((step, index) => {
+          const stepElement = document.getElementById(step.id);
+          if (step.result) {
+            if (step.result.success) {
+              stepElement.classList.add("completed");
+              stepElement.querySelector(".step-description").textContent +=
+                " ✅";
+            } else {
+              stepElement.classList.add("error");
+              stepElement.querySelector(
+                ".step-description"
+              ).textContent += ` ❌ ${step.result.error}`;
+            }
+          }
+        });
+      }
+
+      // Показать уведомление
+      function showAlert(message, type) {
+        const container = document.getElementById("alertContainer");
+        const alert = document.createElement("div");
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        container.appendChild(alert);
+
+        setTimeout(() => {
+          alert.remove();
+        }, 5000);
+      }
+
+      // Автозаполнение webhook URL
+      document.addEventListener("DOMContentLoaded", function () {
+        const webhookUrl = document.getElementById("webhookUrl");
+        webhookUrl.value = `${window.location.origin}/webhook`;
+      });
+    </script>
+  </body>
+</html>

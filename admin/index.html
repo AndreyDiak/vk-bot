@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VK Events Bot - Админ панель</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #f5f5f5;
+        color: #333;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .header {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      textarea {
+        height: 100px;
+        resize: vertical;
+      }
+
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      button:hover {
+        background: #0056b3;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+      }
+
+      .stat-number {
+        font-size: 2em;
+        font-weight: bold;
+        color: #007bff;
+      }
+
+      .stat-label {
+        color: #666;
+        margin-top: 5px;
+      }
+
+      .alert {
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+      }
+
+      .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+      }
+
+      .events-list {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .event-item {
+        padding: 10px;
+        border: 1px solid #eee;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        cursor: pointer;
+      }
+
+      .event-item:hover {
+        background: #f8f9fa;
+      }
+
+      .event-item.selected {
+        background: #e3f2fd;
+        border-color: #2196f3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🤖 VK Events Bot - Админ панель</h1>
+        <p>Управление уведомлениями и пользователями</p>
+        <div style="margin-top: 15px">
+          <a
+            href="/admin/setup"
+            style="color: #007bff; text-decoration: none; font-weight: 500"
+          >
+            ⚙️ Автоматическая настройка бота
+          </a>
+        </div>
+      </div>
+
+      <!-- Статистика -->
+      <div class="stats" id="stats">
+        <div class="stat-card">
+          <div class="stat-number" id="totalUsers">-</div>
+          <div class="stat-label">Всего пользователей</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="activeUsers">-</div>
+          <div class="stat-label">Активных пользователей</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="totalRegistrations">-</div>
+          <div class="stat-label">Всего регистраций</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="totalNotifications">-</div>
+          <div class="stat-label">Отправлено уведомлений</div>
+        </div>
+      </div>
+
+      <!-- Уведомления -->
+      <div class="card">
+        <h2>📢 Отправка уведомлений</h2>
+
+        <div id="alertContainer"></div>
+
+        <div class="form-group">
+          <label for="notificationType">Тип уведомления:</label>
+          <select id="notificationType">
+            <option value="broadcast">Всем пользователям</option>
+            <option value="event">Участникам мероприятия</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="eventSelectGroup" style="display: none">
+          <label for="eventSelect">Выберите мероприятие:</label>
+          <select id="eventSelect">
+            <option value="">Загрузка...</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="notificationTitle">Заголовок:</label>
+          <input
+            type="text"
+            id="notificationTitle"
+            placeholder="Например: Важное уведомление"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="notificationMessage">Сообщение:</label>
+          <textarea
+            id="notificationMessage"
+            placeholder="Введите текст уведомления..."
+          ></textarea>
+        </div>
+
+        <button onclick="sendNotification()" id="sendButton">
+          Отправить уведомление
+        </button>
+      </div>
+
+      <!-- Список пользователей -->
+      <div class="card">
+        <h2>👥 Пользователи</h2>
+        <div id="usersList">
+          <div class="loading">Загрузка...</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE = window.location.origin;
+
+      // Загрузка статистики
+      async function loadStats() {
+        try {
+          const response = await fetch(`${API_BASE}/api/stats`);
+          const data = await response.json();
+
+          document.getElementById("totalUsers").textContent =
+            data.users.totalUsers;
+          document.getElementById("activeUsers").textContent =
+            data.users.activeUsers;
+          document.getElementById("totalRegistrations").textContent =
+            data.users.totalRegistrations;
+          document.getElementById("totalNotifications").textContent =
+            data.notifications.totalNotifications;
+        } catch (error) {
+          console.error("Error loading stats:", error);
+        }
+      }
+
+      // Загрузка мероприятий
+      async function loadEvents() {
+        try {
+          const response = await fetch(`${API_BASE}/api/events`);
+          const events = await response.json();
+
+          const select = document.getElementById("eventSelect");
+          select.innerHTML = '<option value="">Выберите мероприятие</option>';
+
+          events.forEach((event) => {
+            const option = document.createElement("option");
+            option.value = event.id;
+            option.textContent = `${event.name} (${new Date(
+              event.event_date
+            ).toLocaleDateString("ru-RU")})`;
+            select.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Error loading events:", error);
+          document.getElementById("eventSelect").innerHTML =
+            '<option value="">Ошибка загрузки</option>';
+        }
+      }
+
+      // Загрузка пользователей
+      async function loadUsers() {
+        try {
+          const response = await fetch(`${API_BASE}/api/users`);
+          const users = await response.json();
+
+          const container = document.getElementById("usersList");
+          container.innerHTML = "";
+
+          if (users.length === 0) {
+            container.innerHTML = "<p>Пользователи не найдены</p>";
+            return;
+          }
+
+          users.forEach((user) => {
+            const userDiv = document.createElement("div");
+            userDiv.className = "event-item";
+            userDiv.innerHTML = `
+                        <strong>${user.first_name || ""} ${
+              user.last_name || ""
+            }</strong>
+                        <br>
+                        <small>ID: ${
+                          user.vk_user_id
+                        } | Зарегистрирован: ${new Date(
+              user.created_at
+            ).toLocaleDateString("ru-RU")}</small>
+                    `;
+            container.appendChild(userDiv);
+          });
+        } catch (error) {
+          console.error("Error loading users:", error);
+          document.getElementById("usersList").innerHTML =
+            "<p>Ошибка загрузки пользователей</p>";
+        }
+      }
+
+      // Отправка уведомления
+      async function sendNotification() {
+        const type = document.getElementById("notificationType").value;
+        const title = document.getElementById("notificationTitle").value;
+        const message = document.getElementById("notificationMessage").value;
+
+        if (!message.trim()) {
+          showAlert("Введите сообщение", "error");
+          return;
+        }
+
+        const button = document.getElementById("sendButton");
+        button.disabled = true;
+        button.textContent = "Отправка...";
+
+        try {
+          let url, body;
+
+          if (type === "broadcast") {
+            url = `${API_BASE}/api/broadcast`;
+            body = { title, message };
+          } else {
+            const eventId = document.getElementById("eventSelect").value;
+            if (!eventId) {
+              showAlert("Выберите мероприятие", "error");
+              return;
+            }
+            url = `${API_BASE}/api/notify-event/${eventId}`;
+            body = { title, message };
+          }
+
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            showAlert(
+              `Уведомление отправлено! Получено: ${result.total_sent}, Ошибок: ${result.total_failed}`,
+              "success"
+            );
+            document.getElementById("notificationMessage").value = "";
+            document.getElementById("notificationTitle").value = "";
+            loadStats();
+          } else {
+            showAlert(`Ошибка: ${result.error}`, "error");
+          }
+        } catch (error) {
+          console.error("Error sending notification:", error);
+          showAlert("Ошибка отправки уведомления", "error");
+        } finally {
+          button.disabled = false;
+          button.textContent = "Отправить уведомление";
+        }
+      }
+
+      // Показать уведомление
+      function showAlert(message, type) {
+        const container = document.getElementById("alertContainer");
+        const alert = document.createElement("div");
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        container.appendChild(alert);
+
+        setTimeout(() => {
+          alert.remove();
+        }, 5000);
+      }
+
+      // Обработка изменения типа уведомления
+      document
+        .getElementById("notificationType")
+        .addEventListener("change", function () {
+          const eventGroup = document.getElementById("eventSelectGroup");
+          if (this.value === "event") {
+            eventGroup.style.display = "block";
+            loadEvents();
+          } else {
+            eventGroup.style.display = "none";
+          }
+        });
+
+      // Загрузка данных при загрузке страницы
+      document.addEventListener("DOMContentLoaded", function () {
+        loadStats();
+        loadUsers();
+      });
+    </script>
+  </body>
+</html>
