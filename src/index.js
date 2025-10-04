@@ -39,7 +39,7 @@ app.post("/webhook", async (req, res) => {
         "✅ Подтверждение сервера, отправляем токен:",
         process.env.VK_CONFIRMATION_TOKEN
       );
-      return res.send(process.env.VK_CONFIRMATION_TOKEN);
+      return res.status(200).send(process.env.VK_CONFIRMATION_TOKEN);
     }
 
     // Обработка новых сообщений
@@ -100,12 +100,49 @@ app.get("/", (req, res) => {
   });
 });
 
-// Временная обработка POST запросов на корневой путь
-app.post("/", (req, res) => {
-  console.log("📨 POST запрос на корневой путь, перенаправляем на /webhook");
-  // Перенаправляем на webhook
-  req.url = "/webhook";
-  app._router.handle(req, res);
+// Обработка POST запросов на корневой путь (для VK callback)
+app.post("/", async (req, res) => {
+  try {
+    console.log("📨 POST запрос на корневой путь:", JSON.stringify(req.body, null, 2));
+    const { type, object } = req.body;
+
+    // Подтверждение сервера
+    if (type === "confirmation") {
+      console.log(
+        "✅ Подтверждение сервера (корневой путь), отправляем токен:",
+        process.env.VK_CONFIRMATION_TOKEN
+      );
+      return res.status(200).send(process.env.VK_CONFIRMATION_TOKEN);
+    }
+
+    // Обработка новых сообщений
+    if (type === "message_new") {
+      const message = object.message;
+
+      // Создаем контекст для обработчика
+      const context = {
+        senderId: message.from_id,
+        text: message.text,
+        messagePayload: message.payload ? JSON.parse(message.payload) : null,
+        send: async (options) => {
+          return await vk.api.messages.send({
+            peer_id: message.from_id,
+            random_id: Math.floor(Math.random() * 2147483647),
+            ...options,
+          });
+        },
+      };
+
+      // Обрабатываем сообщение
+      await messageHandler.handleMessage(context);
+    }
+
+    console.log("✅ Отправляем ответ 'ok' (корневой путь)");
+    res.status(200).send("ok");
+  } catch (error) {
+    console.error("❌ Root webhook error:", error);
+    res.status(500).send("error");
+  }
 });
 
 // API для администратора
