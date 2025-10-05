@@ -44,9 +44,18 @@ export class MessageHandler {
         // Если пользователь вводит число, проверяем, не находится ли он в процессе выбора количества участников
         if (
           this.userStates.has(userId) &&
-          this.userStates.get(userId).state === "selecting_participants"
+          (this.userStates.get(userId).state === "selecting_participants" ||
+            this.userStates.get(userId).state === "changing_participants")
         ) {
           return this.handleParticipantsCount(context, text);
+        }
+
+        // Если пользователь вводит название команды
+        if (
+          this.userStates.has(userId) &&
+          this.userStates.get(userId).state === "entering_team_name"
+        ) {
+          return this.handleTeamNameInput(context, text);
         }
         return this.showMainMenu(context);
     }
@@ -74,14 +83,36 @@ export class MessageHandler {
         return this.showParticipantsCountSelection(context, payload.eventId);
 
       case "confirm_register":
-        return this.registerUser(
+        return this.showTeamNameInput(
           context,
           payload.eventId,
           payload.participantsCount
         );
 
+      case "confirm_register_with_team":
+        return this.registerUser(
+          context,
+          payload.eventId,
+          payload.participantsCount,
+          payload.teamName
+        );
+
       case "cancel_registration":
         return this.cancelRegistration(context, payload.eventId);
+
+      case "change_participants":
+        return this.showParticipantsCountSelection(
+          context,
+          payload.eventId,
+          true
+        );
+
+      case "confirm_change_participants":
+        return this.changeParticipantsCount(
+          context,
+          payload.eventId,
+          payload.participantsCount
+        );
 
       case "my_registrations":
         return this.showMyRegistrations(context);
@@ -170,6 +201,9 @@ export class MessageHandler {
       context.senderId
     );
     const isRegistered = registrations.some((reg) => reg.event_id === eventId);
+    const currentRegistration = registrations.find(
+      (reg) => reg.event_id === eventId
+    );
 
     const date = EventsService.formatEventDate(event.event_date);
 
@@ -189,17 +223,27 @@ export class MessageHandler {
     }
 
     if (isRegistered) {
+      const participantsCount = currentRegistration?.participants_count || 1;
+      const teamName = currentRegistration?.team_name;
       message += `\n\n✅ **Вы зарегистрированы на это мероприятие**`;
+      message += `\n👥 **Количество участников:** ${participantsCount}`;
+      if (teamName) {
+        message += `\n🏆 **Команда:** ${teamName}`;
+      }
     }
 
     await context.send({
       message,
-      keyboard: Keyboards.getEventDetails(event, isRegistered),
+      keyboard: Keyboards.getEventDetails(
+        event,
+        isRegistered,
+        currentRegistration
+      ),
     });
   }
 
   // Показать выбор количества участников
-  async showParticipantsCountSelection(context, eventId) {
+  async showParticipantsCountSelection(context, eventId, isChanging = false) {
     const event = await EventsService.getEventById(eventId);
 
     if (!event) {
@@ -219,18 +263,33 @@ export class MessageHandler {
       message += `📍 **Место:** ${event.location}\n`;
     }
 
-    message += `\n👥 **Сколько человек будет участвовать?**\n`;
+    if (isChanging) {
+      // Получаем текущее количество участников
+      const registrations = await EventsService.getUserRegistrations(
+        context.senderId
+      );
+      const currentRegistration = registrations.find(
+        (reg) => reg.event_id === eventId
+      );
+      const currentCount = currentRegistration?.participants_count || 1;
+
+      message += `\n👥 **Текущее количество участников:** ${currentCount}\n`;
+      message += `\n👥 **Выберите новое количество участников:**\n`;
+    } else {
+      message += `\n👥 **Сколько человек будет участвовать?**\n`;
+    }
     message += `Введите число от 1 до 10:`;
 
     // Сохраняем состояние пользователя
     this.userStates.set(context.senderId, {
-      state: "selecting_participants",
+      state: isChanging ? "changing_participants" : "selecting_participants",
       eventId: eventId,
+      isChanging: isChanging,
     });
 
     await context.send({
       message,
-      keyboard: Keyboards.getParticipantsCountKeyboard(eventId),
+      keyboard: Keyboards.getParticipantsCountKeyboard(eventId, isChanging),
     });
   }
 
@@ -239,7 +298,11 @@ export class MessageHandler {
     const userId = context.senderId;
     const userState = this.userStates.get(userId);
 
-    if (!userState || userState.state !== "selecting_participants") {
+    if (
+      !userState ||
+      (userState.state !== "selecting_participants" &&
+        userState.state !== "changing_participants")
+    ) {
       return this.showMainMenu(context);
     }
 
@@ -252,7 +315,10 @@ export class MessageHandler {
     ) {
       await context.send({
         message: "❌ Пожалуйста, введите число от 1 до 10",
-        keyboard: Keyboards.getParticipantsCountKeyboard(userState.eventId),
+        keyboard: Keyboards.getParticipantsCountKeyboard(
+          userState.eventId,
+          userState.isChanging
+        ),
       });
       return;
     }
@@ -260,16 +326,25 @@ export class MessageHandler {
     // Очищаем состояние пользователя
     this.userStates.delete(userId);
 
-    // Показываем подтверждение регистрации
-    await this.showRegistrationConfirm(
-      context,
-      userState.eventId,
-      participantsCount
-    );
+    if (userState.isChanging) {
+      // Показываем подтверждение изменения
+      await this.showChangeParticipantsConfirm(
+        context,
+        userState.eventId,
+        participantsCount
+      );
+    } else {
+      // Показываем подтверждение регистрации
+      await this.showRegistrationConfirm(
+        context,
+        userState.eventId,
+        participantsCount
+      );
+    }
   }
 
-  // Показать подтверждение регистрации
-  async showRegistrationConfirm(context, eventId, participantsCount = 1) {
+  // Показать ввод названия команды
+  async showTeamNameInput(context, eventId, participantsCount = 1) {
     const event = await EventsService.getEventById(eventId);
 
     if (!event) {
@@ -290,20 +365,106 @@ export class MessageHandler {
     }
 
     message += `👥 **Количество участников:** ${participantsCount}\n`;
+    message += `\n🏆 **Введите название команды (или нажмите "Пропустить"):**\n`;
+    message += `_Максимум 50 символов_`;
+
+    // Сохраняем состояние пользователя
+    this.userStates.set(context.senderId, {
+      state: "entering_team_name",
+      eventId: eventId,
+      participantsCount: participantsCount,
+    });
+
+    await context.send({
+      message,
+      keyboard: Keyboards.getTeamNameInput(eventId, participantsCount),
+    });
+  }
+
+  // Обработка ввода названия команды
+  async handleTeamNameInput(context, text) {
+    const userId = context.senderId;
+    const userState = this.userStates.get(userId);
+
+    if (!userState || userState.state !== "entering_team_name") {
+      return this.showMainMenu(context);
+    }
+
+    // Очищаем состояние пользователя
+    this.userStates.delete(userId);
+
+    // Валидация названия команды
+    if (text.length > 50) {
+      await context.send({
+        message: "❌ Название команды слишком длинное. Максимум 50 символов.",
+        keyboard: Keyboards.getTeamNameInput(
+          userState.eventId,
+          userState.participantsCount
+        ),
+      });
+      return;
+    }
+
+    // Показываем подтверждение регистрации
+    await this.showRegistrationConfirm(
+      context,
+      userState.eventId,
+      userState.participantsCount,
+      text.trim() || null
+    );
+  }
+
+  // Показать подтверждение регистрации
+  async showRegistrationConfirm(
+    context,
+    eventId,
+    participantsCount = 1,
+    teamName = null
+  ) {
+    const event = await EventsService.getEventById(eventId);
+
+    if (!event) {
+      await context.send({
+        message: "❌ Мероприятие не найдено",
+        keyboard: Keyboards.getMainMenu(),
+      });
+      return;
+    }
+
+    const date = EventsService.formatEventDate(event.event_date);
+
+    let message = `📅 **${event.name}**\n\n`;
+    message += `📅 **Дата:** ${date}\n`;
+
+    if (event.location) {
+      message += `📍 **Место:** ${event.location}\n`;
+    }
+
+    message += `👥 **Количество участников:** ${participantsCount}\n`;
+
+    if (teamName) {
+      message += `🏆 **Название команды:** ${teamName}\n`;
+    }
+
     message += `\n❓ **Вы уверены, что хотите зарегистрироваться?**`;
 
     await context.send({
       message,
-      keyboard: Keyboards.getRegistrationConfirm(eventId, participantsCount),
+      keyboard: Keyboards.getRegistrationConfirm(
+        eventId,
+        participantsCount,
+        teamName
+      ),
     });
   }
 
   // Зарегистрировать пользователя
-  async registerUser(context, eventId, participantsCount = 1) {
+  async registerUser(context, eventId, participantsCount = 1, teamName = null) {
     const userInfo = {
       name: context.senderId, // В реальном проекте можно получить имя из профиля ВК
       phone: null,
       participantsCount: participantsCount,
+      teamName: teamName,
     };
 
     const result = await EventsService.registerUser(
@@ -323,6 +484,63 @@ export class MessageHandler {
     const result = await EventsService.cancelRegistration(
       eventId,
       context.senderId
+    );
+
+    await context.send({
+      message: result.message,
+      keyboard: Keyboards.getMainMenu(),
+    });
+  }
+
+  // Показать подтверждение изменения количества участников
+  async showChangeParticipantsConfirm(context, eventId, newParticipantsCount) {
+    const event = await EventsService.getEventById(eventId);
+
+    if (!event) {
+      await context.send({
+        message: "❌ Мероприятие не найдено",
+        keyboard: Keyboards.getMainMenu(),
+      });
+      return;
+    }
+
+    // Получаем текущее количество участников
+    const registrations = await EventsService.getUserRegistrations(
+      context.senderId
+    );
+    const currentRegistration = registrations.find(
+      (reg) => reg.event_id === eventId
+    );
+    const currentCount = currentRegistration?.participants_count || 1;
+
+    const date = EventsService.formatEventDate(event.event_date);
+
+    let message = `📅 **${event.name}**\n\n`;
+    message += `📅 **Дата:** ${date}\n`;
+
+    if (event.location) {
+      message += `📍 **Место:** ${event.location}\n`;
+    }
+
+    message += `👥 **Текущее количество участников:** ${currentCount}\n`;
+    message += `👥 **Новое количество участников:** ${newParticipantsCount}\n`;
+    message += `\n❓ **Вы уверены, что хотите изменить количество участников?**`;
+
+    await context.send({
+      message,
+      keyboard: Keyboards.getChangeParticipantsConfirm(
+        eventId,
+        newParticipantsCount
+      ),
+    });
+  }
+
+  // Изменить количество участников
+  async changeParticipantsCount(context, eventId, newParticipantsCount) {
+    const result = await EventsService.changeParticipantsCount(
+      eventId,
+      context.senderId,
+      newParticipantsCount
     );
 
     await context.send({
@@ -351,6 +569,7 @@ export class MessageHandler {
       const event = registration.events;
       const date = EventsService.formatEventDate(event.event_date);
       const participantsCount = registration.participants_count || 1;
+      const teamName = registration.team_name;
 
       message += `${index + 1}. **${event.name}**\n`;
       message += `📅 ${date}\n`;
@@ -358,6 +577,9 @@ export class MessageHandler {
         message += `📍 ${event.location}\n`;
       }
       message += `👥 Участников: ${participantsCount}\n`;
+      if (teamName) {
+        message += `🏆 Команда: ${teamName}\n`;
+      }
       message += "\n";
     });
 

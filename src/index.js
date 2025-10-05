@@ -103,7 +103,10 @@ app.get("/", (req, res) => {
 // Обработка POST запросов на корневой путь (для VK callback)
 app.post("/", async (req, res) => {
   try {
-    console.log("📨 POST запрос на корневой путь:", JSON.stringify(req.body, null, 2));
+    console.log(
+      "📨 POST запрос на корневой путь:",
+      JSON.stringify(req.body, null, 2)
+    );
     const { type, object } = req.body;
 
     // Подтверждение сервера

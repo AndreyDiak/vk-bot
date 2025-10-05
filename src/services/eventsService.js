@@ -72,22 +72,34 @@ export class EventsService {
         }
 
         const participantsCount = userInfo.participantsCount || 1;
+        const teamName = userInfo.teamName || null;
         console.log(
-          `📝 Симуляция регистрации: пользователь ${userId} на мероприятие ${eventId} (${participantsCount} чел.)`
+          `📝 Симуляция регистрации: пользователь ${userId} на мероприятие ${eventId} (${participantsCount} чел.)${
+            teamName ? `, команда: ${teamName}` : ""
+          }`
         );
+
+        let message = `Вы успешно зарегистрированы на мероприятие "${
+          event.title
+        }" на ${participantsCount} ${
+          participantsCount === 1 ? "человека" : "человек"
+        }!`;
+
+        if (teamName) {
+          message += `\n🏆 Название команды: ${teamName}`;
+        }
+
+        message += `\n(тестовый режим)`;
 
         return {
           success: true,
-          message: `Вы успешно зарегистрированы на мероприятие "${
-            event.title
-          }" на ${participantsCount} ${
-            participantsCount === 1 ? "человека" : "человек"
-          }! (тестовый режим)`,
+          message,
           registration: {
             id: Date.now(),
             event_id: eventId,
             user_id: userId,
             participants_count: participantsCount,
+            team_name: teamName,
           },
         };
       }
@@ -147,6 +159,7 @@ export class EventsService {
           participants_count: participantsCount,
           user_name: userInfo.name || "Пользователь",
           user_phone: userInfo.phone || null,
+          team_name: userInfo.teamName || null,
           registered_at: new Date().toISOString(),
         })
         .select()
@@ -156,9 +169,16 @@ export class EventsService {
 
       const participantsText =
         participantsCount === 1 ? "участника" : "участников";
+
+      let message = `Вы успешно зарегистрированы на мероприятие "${event.name}" на ${participantsCount} ${participantsText}`;
+
+      if (userInfo.teamName) {
+        message += `\n🏆 Название команды: ${userInfo.teamName}`;
+      }
+
       return {
         success: true,
-        message: `Вы успешно зарегистрированы на мероприятие "${event.name}" на ${participantsCount} ${participantsText}`,
+        message,
         registration: data,
       };
     } catch (error) {
@@ -170,6 +190,17 @@ export class EventsService {
   // Отменить регистрацию
   static async cancelRegistration(eventId, userId) {
     try {
+      if (!supabase) {
+        // Симуляция отмены регистрации без Supabase
+        console.log(
+          `📝 Симуляция отмены регистрации: пользователь ${userId} с мероприятия ${eventId}`
+        );
+        return {
+          success: true,
+          message: "Регистрация отменена (тестовый режим)",
+        };
+      }
+
       const { error } = await supabase
         .from(REGISTRATIONS_TABLE)
         .delete()
@@ -184,6 +215,92 @@ export class EventsService {
       return {
         success: false,
         message: "Произошла ошибка при отмене регистрации",
+      };
+    }
+  }
+
+  // Изменить количество участников
+  static async changeParticipantsCount(eventId, userId, newParticipantsCount) {
+    try {
+      if (!supabase) {
+        // Симуляция изменения количества участников без Supabase
+        console.log(
+          `📝 Симуляция изменения количества участников: пользователь ${userId} на мероприятие ${eventId} (${newParticipantsCount} чел.)`
+        );
+        return {
+          success: true,
+          message: `Количество участников изменено на ${newParticipantsCount} (тестовый режим)`,
+        };
+      }
+
+      // Проверяем, зарегистрирован ли пользователь
+      const { data: existingRegistration } = await supabase
+        .from(REGISTRATIONS_TABLE)
+        .select("id, participants_count")
+        .eq("event_id", eventId)
+        .eq("user_id", userId)
+        .single();
+
+      if (!existingRegistration) {
+        return {
+          success: false,
+          message: "Вы не зарегистрированы на это мероприятие",
+        };
+      }
+
+      // Проверяем, есть ли свободные места для нового количества
+      const event = await this.getEventById(eventId);
+      if (!event) {
+        return { success: false, message: "Мероприятие не найдено" };
+      }
+
+      if (event.max_participants) {
+        // Получаем общее количество зарегистрированных участников
+        const { data: registrations } = await supabase
+          .from(REGISTRATIONS_TABLE)
+          .select("participants_count")
+          .eq("event_id", eventId);
+
+        const totalRegistered =
+          registrations?.reduce(
+            (sum, reg) => sum + (reg.participants_count || 1),
+            0
+          ) || 0;
+
+        // Вычитаем текущее количество участников пользователя
+        const currentUserCount = existingRegistration.participants_count || 1;
+        const availableSlots = totalRegistered - currentUserCount;
+
+        if (availableSlots + newParticipantsCount > event.max_participants) {
+          return {
+            success: false,
+            message: `К сожалению, недостаточно мест. Доступно: ${
+              event.max_participants - availableSlots
+            }`,
+          };
+        }
+      }
+
+      // Обновляем количество участников
+      const { error } = await supabase
+        .from(REGISTRATIONS_TABLE)
+        .update({ participants_count: newParticipantsCount })
+        .eq("event_id", eventId)
+        .eq("user_id", userId);
+
+      if (error) throw error;
+
+      const participantsText =
+        newParticipantsCount === 1 ? "участника" : "участников";
+      return {
+        success: true,
+        message: `Количество участников изменено на ${newParticipantsCount} ${participantsText}`,
+      };
+    } catch (error) {
+      console.error("Error changing participants count:", error);
+      return {
+        success: false,
+        message: "Произошла ошибка при изменении количества участников",
       };
     }
   }

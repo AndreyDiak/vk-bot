@@ -68,7 +68,11 @@ export class Keyboards {
   }
 
   // Детали мероприятия
-  static getEventDetails(event, isRegistered = false) {
+  static getEventDetails(
+    event,
+    isRegistered = false,
+    currentRegistration = null
+  ) {
     const keyboard = Keyboard.builder();
 
     if (!isRegistered) {
@@ -78,6 +82,13 @@ export class Keyboards {
         color: "positive",
       });
     } else {
+      // Для зарегистрированных пользователей показываем кнопки управления
+      keyboard.textButton({
+        label: "✏️ Изменить количество",
+        payload: { command: "change_participants", eventId: event.id },
+        color: "primary",
+      });
+
       keyboard.textButton({
         label: "❌ Отменить регистрацию",
         payload: { command: "cancel_registration", eventId: event.id },
@@ -95,60 +106,64 @@ export class Keyboards {
   }
 
   // Клавиатура для выбора количества участников
-  static getParticipantsCountKeyboard(eventId) {
+  static getParticipantsCountKeyboard(eventId, isChanging = false) {
+    const command = isChanging
+      ? "confirm_change_participants"
+      : "confirm_register";
+
     return Keyboard.builder()
       .textButton({
         label: "1",
-        payload: { command: "confirm_register", eventId, participantsCount: 1 },
+        payload: { command, eventId, participantsCount: 1 },
         color: "primary",
       })
       .textButton({
         label: "2",
-        payload: { command: "confirm_register", eventId, participantsCount: 2 },
+        payload: { command, eventId, participantsCount: 2 },
         color: "primary",
       })
       .textButton({
         label: "3",
-        payload: { command: "confirm_register", eventId, participantsCount: 3 },
+        payload: { command, eventId, participantsCount: 3 },
         color: "primary",
       })
       .row()
       .textButton({
         label: "4",
-        payload: { command: "confirm_register", eventId, participantsCount: 4 },
+        payload: { command, eventId, participantsCount: 4 },
         color: "primary",
       })
       .textButton({
         label: "5",
-        payload: { command: "confirm_register", eventId, participantsCount: 5 },
+        payload: { command, eventId, participantsCount: 5 },
         color: "primary",
       })
       .textButton({
         label: "6",
-        payload: { command: "confirm_register", eventId, participantsCount: 6 },
+        payload: { command, eventId, participantsCount: 6 },
         color: "primary",
       })
       .row()
       .textButton({
         label: "7",
-        payload: { command: "confirm_register", eventId, participantsCount: 7 },
+        payload: { command, eventId, participantsCount: 7 },
         color: "primary",
       })
       .textButton({
         label: "8",
-        payload: { command: "confirm_register", eventId, participantsCount: 8 },
+        payload: { command, eventId, participantsCount: 8 },
         color: "primary",
       })
       .textButton({
         label: "9",
-        payload: { command: "confirm_register", eventId, participantsCount: 9 },
+        payload: { command, eventId, participantsCount: 9 },
         color: "primary",
       })
       .row()
       .textButton({
         label: "10",
         payload: {
-          command: "confirm_register",
+          command,
           eventId,
           participantsCount: 10,
         },
@@ -163,12 +178,62 @@ export class Keyboards {
       .oneTime();
   }
 
+  // Ввод названия команды
+  static getTeamNameInput(eventId, participantsCount = 1) {
+    return Keyboard.builder()
+      .textButton({
+        label: "⏭️ Пропустить",
+        payload: {
+          command: "confirm_register_with_team",
+          eventId,
+          participantsCount,
+          teamName: null,
+        },
+        color: "secondary",
+      })
+      .textButton({
+        label: "🔙 Назад",
+        payload: { command: "register", eventId },
+        color: "secondary",
+      })
+      .oneTime();
+  }
+
   // Подтверждение регистрации
-  static getRegistrationConfirm(eventId, participantsCount = 1) {
+  static getRegistrationConfirm(
+    eventId,
+    participantsCount = 1,
+    teamName = null
+  ) {
     return Keyboard.builder()
       .textButton({
         label: "✅ Да, зарегистрироваться",
-        payload: { command: "confirm_register", eventId, participantsCount },
+        payload: {
+          command: "confirm_register_with_team",
+          eventId,
+          participantsCount,
+          teamName,
+        },
+        color: "positive",
+      })
+      .textButton({
+        label: "❌ Отмена",
+        payload: { command: "event_details", eventId },
+        color: "negative",
+      })
+      .oneTime();
+  }
+
+  // Подтверждение изменения количества участников
+  static getChangeParticipantsConfirm(eventId, participantsCount = 1) {
+    return Keyboard.builder()
+      .textButton({
+        label: "✅ Да, изменить",
+        payload: {
+          command: "confirm_change_participants",
+          eventId,
+          participantsCount,
+        },
         color: "positive",
       })
       .textButton({
