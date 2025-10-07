@@ -169,6 +169,24 @@ export class Keyboards {
         },
         color: "primary",
       })
+      .textButton({
+        label: "11",
+        payload: {
+          command,
+          eventId,
+          participantsCount: 11,
+        },
+        color: "primary",
+      })
+      .textButton({
+        label: "12",
+        payload: {
+          command,
+          eventId,
+          participantsCount: 12,
+        },
+        color: "primary",
+      })
       .row()
       .textButton({
         label: "🔙 Назад",
@@ -181,16 +199,6 @@ export class Keyboards {
   // Ввод названия команды
   static getTeamNameInput(eventId, participantsCount = 1) {
     return Keyboard.builder()
-      .textButton({
-        label: "⏭️ Пропустить",
-        payload: {
-          command: "confirm_register_with_team",
-          eventId,
-          participantsCount,
-          teamName: null,
-        },
-        color: "secondary",
-      })
       .textButton({
         label: "🔙 Назад",
         payload: { command: "register", eventId },

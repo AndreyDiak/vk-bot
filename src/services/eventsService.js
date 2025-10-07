@@ -8,24 +8,6 @@ export class EventsService {
   // Получить все активные мероприятия
   static async getActiveEvents() {
     try {
-      if (!supabase) {
-        // Возвращаем тестовые данные если Supabase не настроен
-        return [
-          {
-            id: 1,
-            title: "Тестовое мероприятие",
-            description:
-              "Это тестовое мероприятие для демонстрации работы бота",
-            event_date: new Date(
-              Date.now() + 7 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-            location: "Онлайн",
-            max_participants: 50,
-            is_active: true,
-          },
-        ];
-      }
-
       const { data, error } = await supabase
         .from(EVENTS_TABLE)
         .select("*")
@@ -61,49 +43,6 @@ export class EventsService {
   // Зарегистрировать пользователя на мероприятие
   static async registerUser(eventId, userId, userInfo = {}) {
     try {
-      if (!supabase) {
-        // Симуляция регистрации без Supabase
-        const event = await this.getEventById(eventId);
-        if (!event) {
-          return {
-            success: false,
-            message: "Мероприятие не найдено или неактивно",
-          };
-        }
-
-        const participantsCount = userInfo.participantsCount || 1;
-        const teamName = userInfo.teamName || null;
-        console.log(
-          `📝 Симуляция регистрации: пользователь ${userId} на мероприятие ${eventId} (${participantsCount} чел.)${
-            teamName ? `, команда: ${teamName}` : ""
-          }`
-        );
-
-        let message = `Вы успешно зарегистрированы на мероприятие "${
-          event.title
-        }" на ${participantsCount} ${
-          participantsCount === 1 ? "человека" : "человек"
-        }!`;
-
-        if (teamName) {
-          message += `\n🏆 Название команды: ${teamName}`;
-        }
-
-        message += `\n(тестовый режим)`;
-
-        return {
-          success: true,
-          message,
-          registration: {
-            id: Date.now(),
-            event_id: eventId,
-            user_id: userId,
-            participants_count: participantsCount,
-            team_name: teamName,
-          },
-        };
-      }
-
       // Проверяем, не зарегистрирован ли уже пользователь
       const { data: existingRegistration } = await supabase
         .from(REGISTRATIONS_TABLE)
@@ -190,17 +129,6 @@ export class EventsService {
   // Отменить регистрацию
   static async cancelRegistration(eventId, userId) {
     try {
-      if (!supabase) {
-        // Симуляция отмены регистрации без Supabase
-        console.log(
-          `📝 Симуляция отмены регистрации: пользователь ${userId} с мероприятия ${eventId}`
-        );
-        return {
-          success: true,
-          message: "Регистрация отменена (тестовый режим)",
-        };
-      }
-
       const { error } = await supabase
         .from(REGISTRATIONS_TABLE)
         .delete()
@@ -222,19 +150,8 @@ export class EventsService {
   // Изменить количество участников
   static async changeParticipantsCount(eventId, userId, newParticipantsCount) {
     try {
-      if (!supabase) {
-        // Симуляция изменения количества участников без Supabase
-        console.log(
-          `📝 Симуляция изменения количества участников: пользователь ${userId} на мероприятие ${eventId} (${newParticipantsCount} чел.)`
-        );
-        return {
-          success: true,
-          message: `Количество участников изменено на ${newParticipantsCount} (тестовый режим)`,
-        };
-      }
-
       // Проверяем, зарегистрирован ли пользователь
-      const { data: existingRegistration } = await supabase
+      const { data: existingRegistration, error: selectError } = await supabase
         .from(REGISTRATIONS_TABLE)
         .select("id, participants_count")
         .eq("event_id", eventId)
@@ -282,6 +199,7 @@ export class EventsService {
       }
 
       // Обновляем количество участников
+
       const { error } = await supabase
         .from(REGISTRATIONS_TABLE)
         .update({ participants_count: newParticipantsCount })

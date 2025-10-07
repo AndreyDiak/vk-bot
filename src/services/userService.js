@@ -4,11 +4,6 @@ export class UserService {
   // Сохранить или обновить профиль пользователя
   static async saveUserProfile(vkUserId, userInfo = {}) {
     try {
-      if (!supabase) {
-        console.log(`📝 Симуляция сохранения профиля пользователя ${vkUserId}`);
-        return { success: true };
-      }
-
       const { data: existingUser } = await supabase
         .from("users")
         .select("id")

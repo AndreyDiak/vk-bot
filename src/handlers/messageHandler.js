@@ -311,10 +311,10 @@ export class MessageHandler {
     if (
       isNaN(participantsCount) ||
       participantsCount < 1 ||
-      participantsCount > 10
+      participantsCount > 12
     ) {
       await context.send({
-        message: "❌ Пожалуйста, введите число от 1 до 10",
+        message: "❌ Пожалуйста, введите число от 1 до 12",
         keyboard: Keyboards.getParticipantsCountKeyboard(
           userState.eventId,
           userState.isChanging
@@ -365,7 +365,7 @@ export class MessageHandler {
     }
 
     message += `👥 **Количество участников:** ${participantsCount}\n`;
-    message += `\n🏆 **Введите название команды (или нажмите "Пропустить"):**\n`;
+    message += `\n🏆 **Введите название команды (обязательно):**\n`;
     message += `_Максимум 50 символов_`;
 
     // Сохраняем состояние пользователя
@@ -394,7 +394,21 @@ export class MessageHandler {
     this.userStates.delete(userId);
 
     // Валидация названия команды
-    if (text.length > 50) {
+    const teamName = text.trim();
+
+    if (!teamName) {
+      await context.send({
+        message:
+          "❌ Название команды обязательно для заполнения. Пожалуйста, введите название команды.",
+        keyboard: Keyboards.getTeamNameInput(
+          userState.eventId,
+          userState.participantsCount
+        ),
+      });
+      return;
+    }
+
+    if (teamName.length > 50) {
       await context.send({
         message: "❌ Название команды слишком длинное. Максимум 50 символов.",
         keyboard: Keyboards.getTeamNameInput(
@@ -410,7 +424,7 @@ export class MessageHandler {
       context,
       userState.eventId,
       userState.participantsCount,
-      text.trim() || null
+      teamName
     );
   }
 
