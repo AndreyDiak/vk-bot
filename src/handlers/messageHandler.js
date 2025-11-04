@@ -10,7 +10,8 @@ export class MessageHandler {
   // Обработка входящих сообщений
   async handleMessage(context) {
     const userId = context.senderId;
-    const text = context.text?.toLowerCase() || "";
+    const rawText = context.text || "";
+    const text = rawText.toLowerCase();
     const payload = context.messagePayload;
 
     // Обработка команд из payload
@@ -47,7 +48,7 @@ export class MessageHandler {
           (this.userStates.get(userId).state === "selecting_participants" ||
             this.userStates.get(userId).state === "changing_participants")
         ) {
-          return this.handleParticipantsCount(context, text);
+          return this.handleParticipantsCount(context, rawText);
         }
 
         // Если пользователь вводит название команды
@@ -55,7 +56,7 @@ export class MessageHandler {
           this.userStates.has(userId) &&
           this.userStates.get(userId).state === "entering_team_name"
         ) {
-          return this.handleTeamNameInput(context, text);
+          return this.handleTeamNameInput(context, rawText);
         }
         return this.showMainMenu(context);
     }
@@ -166,14 +167,20 @@ export class MessageHandler {
       return;
     }
 
-    let message = "📅 **Доступные мероприятия:**\n\n";
+    let message = "📅 Доступные мероприятия:\n\n";
 
     events.forEach((event, index) => {
       const date = EventsService.formatEventDate(event.event_date);
-      message += `${index + 1}. **${event.name}**\n`;
+      message += `${index + 1}. ${event.name}\n`;
       message += `📅 ${date}\n`;
       if (event.location) {
         message += `📍 ${event.location}\n`;
+      }
+      if (event.host) {
+        message += `👤 Ведущий: ${event.host}\n`;
+      }
+      if (event.price !== null && event.price !== undefined) {
+        message += `💰 Стоимость: ${EventsService.formatEventPrice(event.price)}\n`;
       }
       message += "\n";
     });
@@ -207,28 +214,36 @@ export class MessageHandler {
 
     const date = EventsService.formatEventDate(event.event_date);
 
-    let message = `📅 **${event.name}**\n\n`;
-    message += `📅 **Дата:** ${date}\n`;
+    let message = `📅 ${event.name}\n\n`;
+    message += `📅 Дата: ${date}\n`;
 
     if (event.location) {
-      message += `📍 **Место:** ${event.location}\n`;
+      message += `📍 Место: ${event.location}\n`;
+    }
+
+    if (event.host) {
+      message += `👤 Ведущий: ${event.host}\n`;
+    }
+
+    if (event.price !== null && event.price !== undefined) {
+      message += `💰 Стоимость: ${EventsService.formatEventPrice(event.price)}\n`;
     }
 
     if (event.description) {
-      message += `\n📝 **Описание:**\n${event.description}\n`;
+      message += `\n📝 Описание:\n${event.description}\n`;
     }
 
     if (event.max_participants) {
-      message += `\n👥 **Максимум участников:** ${event.max_participants}`;
+      message += `\n👥 Максимум участников: ${event.max_participants}`;
     }
 
     if (isRegistered) {
       const participantsCount = currentRegistration?.participants_count || 1;
       const teamName = currentRegistration?.team_name;
-      message += `\n\n✅ **Вы зарегистрированы на это мероприятие**`;
-      message += `\n👥 **Количество участников:** ${participantsCount}`;
+      message += `\n\n✅ Вы зарегистрированы на это мероприятие`;
+      message += `\n👥 Количество участников: ${participantsCount}`;
       if (teamName) {
-        message += `\n🏆 **Команда:** ${teamName}`;
+        message += `\n🏆 Команда: ${teamName}`;
       }
     }
 
@@ -256,11 +271,11 @@ export class MessageHandler {
 
     const date = EventsService.formatEventDate(event.event_date);
 
-    let message = `📅 **${event.name}**\n\n`;
-    message += `📅 **Дата:** ${date}\n`;
+    let message = `📅 ${event.name}\n\n`;
+    message += `📅 Дата: ${date}\n`;
 
     if (event.location) {
-      message += `📍 **Место:** ${event.location}\n`;
+      message += `📍 Место: ${event.location}\n`;
     }
 
     if (isChanging) {
@@ -273,10 +288,10 @@ export class MessageHandler {
       );
       const currentCount = currentRegistration?.participants_count || 1;
 
-      message += `\n👥 **Текущее количество участников:** ${currentCount}\n`;
-      message += `\n👥 **Выберите новое количество участников:**\n`;
+      message += `\n👥 Текущее количество участников: ${currentCount}\n`;
+      message += `\n👥 Выберите новое количество участников:\n`;
     } else {
-      message += `\n👥 **Сколько человек будет участвовать?**\n`;
+      message += `\n👥 Сколько человек будет участвовать?\n`;
     }
     message += `Введите число от 1 до 10:`;
 
@@ -357,16 +372,16 @@ export class MessageHandler {
 
     const date = EventsService.formatEventDate(event.event_date);
 
-    let message = `📅 **${event.name}**\n\n`;
-    message += `📅 **Дата:** ${date}\n`;
+    let message = `📅 ${event.name}\n\n`;
+    message += `📅 Дата: ${date}\n`;
 
     if (event.location) {
-      message += `📍 **Место:** ${event.location}\n`;
+      message += `📍 Место: ${event.location}\n`;
     }
 
-    message += `👥 **Количество участников:** ${participantsCount}\n`;
-    message += `\n🏆 **Введите название команды (обязательно):**\n`;
-    message += `_Максимум 50 символов_`;
+    message += `👥 Количество участников: ${participantsCount}\n`;
+    message += `\n🏆 Введите название команды (обязательно):\n`;
+    message += `Максимум 50 символов`;
 
     // Сохраняем состояние пользователя
     this.userStates.set(context.senderId, {
@@ -447,20 +462,20 @@ export class MessageHandler {
 
     const date = EventsService.formatEventDate(event.event_date);
 
-    let message = `📅 **${event.name}**\n\n`;
-    message += `📅 **Дата:** ${date}\n`;
+    let message = `📅 ${event.name}\n\n`;
+    message += `📅 Дата: ${date}\n`;
 
     if (event.location) {
-      message += `📍 **Место:** ${event.location}\n`;
+      message += `📍 Место: ${event.location}\n`;
     }
 
-    message += `👥 **Количество участников:** ${participantsCount}\n`;
+    message += `👥 Количество участников: ${participantsCount}\n`;
 
     if (teamName) {
-      message += `🏆 **Название команды:** ${teamName}\n`;
+      message += `🏆 Название команды: ${teamName}\n`;
     }
 
-    message += `\n❓ **Вы уверены, что хотите зарегистрироваться?**`;
+    message += `\n❓ Вы уверены, что хотите зарегистрироваться?`;
 
     await context.send({
       message,
@@ -529,16 +544,16 @@ export class MessageHandler {
 
     const date = EventsService.formatEventDate(event.event_date);
 
-    let message = `📅 **${event.name}**\n\n`;
-    message += `📅 **Дата:** ${date}\n`;
+    let message = `📅 ${event.name}\n\n`;
+    message += `📅 Дата: ${date}\n`;
 
     if (event.location) {
-      message += `📍 **Место:** ${event.location}\n`;
+      message += `📍 Место: ${event.location}\n`;
     }
 
-    message += `👥 **Текущее количество участников:** ${currentCount}\n`;
-    message += `👥 **Новое количество участников:** ${newParticipantsCount}\n`;
-    message += `\n❓ **Вы уверены, что хотите изменить количество участников?**`;
+    message += `👥 Текущее количество участников: ${currentCount}\n`;
+    message += `👥 Новое количество участников: ${newParticipantsCount}\n`;
+    message += `\n❓ Вы уверены, что хотите изменить количество участников?`;
 
     await context.send({
       message,
@@ -577,7 +592,7 @@ export class MessageHandler {
       return;
     }
 
-    let message = "📝 **Ваши регистрации:**\n\n";
+    let message = "📝 Ваши регистрации:\n\n";
 
     registrations.forEach((registration, index) => {
       const event = registration.events;
@@ -585,10 +600,16 @@ export class MessageHandler {
       const participantsCount = registration.participants_count || 1;
       const teamName = registration.team_name;
 
-      message += `${index + 1}. **${event.name}**\n`;
+      message += `${index + 1}. ${event.name}\n`;
       message += `📅 ${date}\n`;
       if (event.location) {
         message += `📍 ${event.location}\n`;
+      }
+      if (event.host) {
+        message += `👤 Ведущий: ${event.host}\n`;
+      }
+      if (event.price !== null && event.price !== undefined) {
+        message += `💰 Стоимость: ${EventsService.formatEventPrice(event.price)}\n`;
       }
       message += `👥 Участников: ${participantsCount}\n`;
       if (teamName) {
@@ -605,20 +626,20 @@ export class MessageHandler {
 
   // Показать помощь
   async showHelp(context) {
-    const message = `ℹ️ **Помощь по боту**
+    const message = `ℹ️ Помощь по боту
 
-**Основные команды:**
+Основные команды:
 • /start - Главное меню
 • /events - Список мероприятий
 • /registrations - Мои регистрации
 
-**Как пользоваться:**
+Как пользоваться:
 1. Выберите "Мероприятия" для просмотра доступных событий
 2. Нажмите на интересующее мероприятие для просмотра деталей
 3. Нажмите "Зарегистрироваться" для участия
 4. Используйте "Мои регистрации" для просмотра ваших заявок
 
-**Поддержка:**
+Поддержка:
 Если у вас возникли вопросы, обратитесь к администратору.`;
 
     await context.send({
@@ -629,16 +650,16 @@ export class MessageHandler {
 
   // Показать контакты
   async showContacts(context) {
-    const message = `📞 **Контакты**
+    const message = `📞 Контакты
 
-**Техническая поддержка:**
+Техническая поддержка:
 • Email: support@example.com
 • Телефон: +7 (XXX) XXX-XX-XX
 
-**Администратор:**
+Администратор:
 • @username (ВКонтакте)
 
-**Время работы:**
+Время работы:
 Пн-Пт: 9:00 - 18:00
 Сб-Вс: 10:00 - 16:00`;
 

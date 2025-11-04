@@ -235,7 +235,9 @@ export class EventsService {
             id,
             name,
             event_date,
-            location
+            location,
+            host,
+            price
           )
         `
         )
@@ -260,5 +262,13 @@ export class EventsService {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  // Форматировать стоимость мероприятия для отображения
+  static formatEventPrice(price) {
+    if (price === null || price === undefined) return "—";
+    if (Number(price) === 0) return "Бесплатно";
+    const formatter = new Intl.NumberFormat("ru-RU");
+    return `${formatter.format(Number(price))} ₽`;
   }
 }
