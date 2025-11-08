@@ -23,12 +23,64 @@ export class EventsService {
     }
   }
 
+  // Получить активные мероприятия по городу
+  static async getActiveEventsByCity(cityId) {
+    try {
+      const { data, error } = await supabase
+        .from(EVENTS_TABLE)
+        .select(
+          `
+          *,
+          locations (
+            id,
+            name,
+            map_link,
+            city_id,
+            cities (
+              id,
+              name
+            )
+          )
+        `
+        )
+        .gte("event_date", new Date().toISOString())
+        .eq("is_active", true)
+        .order("event_date", { ascending: true });
+
+      if (error) throw error;
+
+      // Фильтруем мероприятия по городу через location
+      const filteredEvents = (data || []).filter((event) => {
+        return event.locations?.city_id === cityId;
+      });
+
+      return filteredEvents;
+    } catch (error) {
+      console.error("Error fetching events by city:", error);
+      return [];
+    }
+  }
+
   // Получить мероприятие по ID
   static async getEventById(eventId) {
     try {
       const { data, error } = await supabase
         .from(EVENTS_TABLE)
-        .select("*")
+        .select(
+          `
+          *,
+          locations (
+            id,
+            name,
+            map_link,
+            city_id,
+            cities (
+              id,
+              name
+            )
+          )
+        `
+        )
         .eq("id", eventId)
         .single();
 
@@ -99,6 +151,7 @@ export class EventsService {
           user_name: userInfo.name || "Пользователь",
           user_phone: userInfo.phone || null,
           team_name: userInfo.teamName || null,
+          approximately: userInfo.approximately || false,
           registered_at: new Date().toISOString(),
         })
         .select()
@@ -235,9 +288,18 @@ export class EventsService {
             id,
             name,
             event_date,
-            location,
             host,
-            price
+            price,
+            locations (
+              id,
+              name,
+              map_link,
+              city_id,
+              cities (
+                id,
+                name
+              )
+            )
           )
         `
         )
@@ -261,6 +323,7 @@ export class EventsService {
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "Europe/Moscow",
     });
   }
 

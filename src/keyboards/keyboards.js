@@ -106,12 +106,16 @@ export class Keyboards {
   }
 
   // Клавиатура для выбора количества участников
-  static getParticipantsCountKeyboard(eventId, isChanging = false) {
+  static getParticipantsCountKeyboard(
+    eventId,
+    isChanging = false,
+    maxParticipantsInTeam = 12
+  ) {
     const command = isChanging
       ? "confirm_change_participants"
       : "confirm_register";
 
-    return Keyboard.builder()
+    const keyboard = Keyboard.builder()
       .textButton({
         label: "1",
         payload: { command, eventId, participantsCount: 1 },
@@ -186,14 +190,24 @@ export class Keyboards {
           participantsCount: 12,
         },
         color: "primary",
-      })
-      .row()
-      .textButton({
-        label: "🔙 Назад",
-        payload: { command: "event_details", eventId },
+      });
+
+    // Добавляем кнопку "Примерно кол-во" только если не меняем количество
+    if (!isChanging) {
+      keyboard.row().textButton({
+        label: "📊 Примерно кол-во",
+        payload: { command: "enter_approximate_count", eventId },
         color: "secondary",
-      })
-      .oneTime();
+      });
+    }
+
+    keyboard.row().textButton({
+      label: "🔙 Назад",
+      payload: { command: "event_details", eventId },
+      color: "secondary",
+    });
+
+    return keyboard.oneTime();
   }
 
   // Ввод названия команды
@@ -211,7 +225,8 @@ export class Keyboards {
   static getRegistrationConfirm(
     eventId,
     participantsCount = 1,
-    teamName = null
+    teamName = null,
+    approximately = false
   ) {
     return Keyboard.builder()
       .textButton({
@@ -221,6 +236,7 @@ export class Keyboards {
           eventId,
           participantsCount,
           teamName,
+          approximately,
         },
         color: "positive",
       })
@@ -291,5 +307,30 @@ export class Keyboards {
         color: "secondary",
       })
       .oneTime();
+  }
+
+  // Клавиатура для выбора города
+  static getCitiesList(cities) {
+    const keyboard = Keyboard.builder();
+
+    cities.forEach((city, index) => {
+      if (index % 2 === 0) {
+        keyboard.row();
+      }
+
+      keyboard.textButton({
+        label: city.name || `Город ${city.id}`,
+        payload: { command: "select_city", cityId: city.id },
+        color: "primary",
+      });
+    });
+
+    keyboard.row().textButton({
+      label: "🔙 Главное меню",
+      payload: { command: "main_menu" },
+      color: "secondary",
+    });
+
+    return keyboard.oneTime();
   }
 }

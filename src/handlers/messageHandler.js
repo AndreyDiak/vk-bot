@@ -1,4 +1,5 @@
 import { Keyboards } from "../keyboards/keyboards.js";
+import { CitiesService } from "../services/citiesService.js";
 import { EventsService } from "../services/eventsService.js";
 
 export class MessageHandler {
@@ -31,7 +32,7 @@ export class MessageHandler {
 
       case "мероприятия":
       case "events":
-        return this.showEvents(context);
+        return this.showCitiesSelection(context);
 
       case "мои регистрации":
       case "registrations":
@@ -49,6 +50,14 @@ export class MessageHandler {
             this.userStates.get(userId).state === "changing_participants")
         ) {
           return this.handleParticipantsCount(context, rawText);
+        }
+
+        // Если пользователь вводит приблизительное количество участников
+        if (
+          this.userStates.has(userId) &&
+          this.userStates.get(userId).state === "entering_approximate_count"
+        ) {
+          return this.handleApproximateCount(context, rawText);
         }
 
         // Если пользователь вводит название команды
@@ -75,7 +84,10 @@ export class MessageHandler {
         return this.showMainMenu(context);
 
       case "events":
-        return this.showEvents(context);
+        return this.showCitiesSelection(context);
+
+      case "select_city":
+        return this.showEvents(context, payload.cityId);
 
       case "event_details":
         return this.showEventDetails(context, payload.eventId);
@@ -95,7 +107,8 @@ export class MessageHandler {
           context,
           payload.eventId,
           payload.participantsCount,
-          payload.teamName
+          payload.teamName,
+          payload.approximately || false
         );
 
       case "cancel_registration":
@@ -114,6 +127,9 @@ export class MessageHandler {
           payload.eventId,
           payload.participantsCount
         );
+
+      case "enter_approximate_count":
+        return this.showApproximateCountInput(context, payload.eventId);
 
       case "my_registrations":
         return this.showMyRegistrations(context);
@@ -154,33 +170,61 @@ export class MessageHandler {
     });
   }
 
-  // Показать список мероприятий
-  async showEvents(context) {
-    const events = await EventsService.getActiveEvents();
+  // Показать выбор города
+  async showCitiesSelection(context) {
+    const cities = await CitiesService.getAllCities();
 
-    if (events.length === 0) {
+    if (cities.length === 0) {
       await context.send({
-        message:
-          "📅 На данный момент нет активных мероприятий.\n\nПроверьте позже!",
+        message: "❌ Города не найдены",
         keyboard: Keyboards.getMainMenu(),
       });
       return;
     }
 
-    let message = "📅 Доступные мероприятия:\n\n";
+    await context.send({
+      message: "🏙️ Выберите город для просмотра мероприятий:",
+      keyboard: Keyboards.getCitiesList(cities),
+    });
+  }
+
+  // Показать список мероприятий для выбранного города
+  async showEvents(context, cityId) {
+    if (!cityId) {
+      return this.showCitiesSelection(context);
+    }
+
+    const city = await CitiesService.getCityById(cityId);
+    const events = await EventsService.getActiveEventsByCity(cityId);
+
+    if (events.length === 0) {
+      await context.send({
+        message: `📅 В городе "${
+          city?.name || "выбранном"
+        }" нет активных мероприятий.\n\nПроверьте позже!`,
+        keyboard: Keyboards.getMainMenu(),
+      });
+      return;
+    }
+
+    let message = `📅 Доступные мероприятия в городе "${
+      city?.name || "выбранном"
+    }":\n\n`;
 
     events.forEach((event, index) => {
       const date = EventsService.formatEventDate(event.event_date);
       message += `${index + 1}. ${event.name}\n`;
       message += `📅 ${date}\n`;
-      if (event.location) {
-        message += `📍 ${event.location}\n`;
+      if (event.locations?.name) {
+        message += `📍 ${event.locations.name}\n`;
       }
       if (event.host) {
         message += `👤 Ведущий: ${event.host}\n`;
       }
       if (event.price !== null && event.price !== undefined) {
-        message += `💰 Стоимость: ${EventsService.formatEventPrice(event.price)}\n`;
+        message += `💰 Стоимость: ${EventsService.formatEventPrice(
+          event.price
+        )}\n`;
       }
       message += "\n";
     });
@@ -217,8 +261,14 @@ export class MessageHandler {
     let message = `📅 ${event.name}\n\n`;
     message += `📅 Дата: ${date}\n`;
 
-    if (event.location) {
-      message += `📍 Место: ${event.location}\n`;
+    if (event.locations?.name) {
+      message += `📍 Место: ${event.locations.name}\n`;
+      if (event.locations.cities?.name) {
+        message += `🏙️ Город: ${event.locations.cities.name}\n`;
+      }
+      if (event.locations.map_link) {
+        message += `🗺️ Карта: ${event.locations.map_link}\n`;
+      }
     }
 
     if (event.host) {
@@ -226,7 +276,9 @@ export class MessageHandler {
     }
 
     if (event.price !== null && event.price !== undefined) {
-      message += `💰 Стоимость: ${EventsService.formatEventPrice(event.price)}\n`;
+      message += `💰 Стоимость: ${EventsService.formatEventPrice(
+        event.price
+      )}\n`;
     }
 
     if (event.description) {
@@ -274,8 +326,8 @@ export class MessageHandler {
     let message = `📅 ${event.name}\n\n`;
     message += `📅 Дата: ${date}\n`;
 
-    if (event.location) {
-      message += `📍 Место: ${event.location}\n`;
+    if (event.locations?.name) {
+      message += `📍 Место: ${event.locations.name}\n`;
     }
 
     if (isChanging) {
@@ -302,10 +354,90 @@ export class MessageHandler {
       isChanging: isChanging,
     });
 
+    const maxParticipantsInTeam = event.max_participants_in_team || 12;
+
     await context.send({
       message,
-      keyboard: Keyboards.getParticipantsCountKeyboard(eventId, isChanging),
+      keyboard: Keyboards.getParticipantsCountKeyboard(
+        eventId,
+        isChanging,
+        maxParticipantsInTeam
+      ),
     });
+  }
+
+  // Показать ввод приблизительного количества участников
+  async showApproximateCountInput(context, eventId) {
+    const event = await EventsService.getEventById(eventId);
+
+    if (!event) {
+      await context.send({
+        message: "❌ Мероприятие не найдено",
+        keyboard: Keyboards.getMainMenu(),
+      });
+      return;
+    }
+
+    const maxParticipantsInTeam = event.max_participants_in_team || 12;
+    const date = EventsService.formatEventDate(event.event_date);
+
+    let message = `📅 ${event.name}\n\n`;
+    message += `📅 Дата: ${date}\n`;
+
+    if (event.locations?.name) {
+      message += `📍 Место: ${event.locations.name}\n`;
+    }
+
+    message += `\n📊 Введите приблизительное количество участников:\n`;
+    message += `Максимум: ${maxParticipantsInTeam} человек`;
+
+    // Сохраняем состояние пользователя
+    this.userStates.set(context.senderId, {
+      state: "entering_approximate_count",
+      eventId: eventId,
+      maxParticipantsInTeam: maxParticipantsInTeam,
+    });
+
+    await context.send({
+      message,
+      keyboard: Keyboards.getTeamNameInput(eventId, null), // Используем существующую клавиатуру с кнопкой "Назад"
+    });
+  }
+
+  // Обработка ввода приблизительного количества участников
+  async handleApproximateCount(context, text) {
+    const userId = context.senderId;
+    const userState = this.userStates.get(userId);
+
+    if (!userState || userState.state !== "entering_approximate_count") {
+      return this.showMainMenu(context);
+    }
+
+    const participantsCount = parseInt(text);
+    const maxParticipantsInTeam = userState.maxParticipantsInTeam || 12;
+
+    if (
+      isNaN(participantsCount) ||
+      participantsCount < 1 ||
+      participantsCount > maxParticipantsInTeam
+    ) {
+      await context.send({
+        message: `❌ Пожалуйста, введите число от 1 до ${maxParticipantsInTeam}`,
+        keyboard: Keyboards.getTeamNameInput(userState.eventId, null),
+      });
+      return;
+    }
+
+    // Очищаем состояние пользователя
+    this.userStates.delete(userId);
+
+    // Переходим к вводу названия команды с флагом approximately
+    await this.showTeamNameInput(
+      context,
+      userState.eventId,
+      participantsCount,
+      true // approximately = true
+    );
   }
 
   // Обработка ввода количества участников
@@ -359,7 +491,12 @@ export class MessageHandler {
   }
 
   // Показать ввод названия команды
-  async showTeamNameInput(context, eventId, participantsCount = 1) {
+  async showTeamNameInput(
+    context,
+    eventId,
+    participantsCount = 1,
+    approximately = false
+  ) {
     const event = await EventsService.getEventById(eventId);
 
     if (!event) {
@@ -375,11 +512,15 @@ export class MessageHandler {
     let message = `📅 ${event.name}\n\n`;
     message += `📅 Дата: ${date}\n`;
 
-    if (event.location) {
-      message += `📍 Место: ${event.location}\n`;
+    if (event.locations?.name) {
+      message += `📍 Место: ${event.locations.name}\n`;
     }
 
-    message += `👥 Количество участников: ${participantsCount}\n`;
+    message += `👥 Количество участников: ${participantsCount}`;
+    if (approximately) {
+      message += ` (примерно)`;
+    }
+    message += `\n`;
     message += `\n🏆 Введите название команды (обязательно):\n`;
     message += `Максимум 50 символов`;
 
@@ -388,6 +529,7 @@ export class MessageHandler {
       state: "entering_team_name",
       eventId: eventId,
       participantsCount: participantsCount,
+      approximately: approximately,
     });
 
     await context.send({
@@ -439,7 +581,8 @@ export class MessageHandler {
       context,
       userState.eventId,
       userState.participantsCount,
-      teamName
+      teamName,
+      userState.approximately || false
     );
   }
 
@@ -448,7 +591,8 @@ export class MessageHandler {
     context,
     eventId,
     participantsCount = 1,
-    teamName = null
+    teamName = null,
+    approximately = false
   ) {
     const event = await EventsService.getEventById(eventId);
 
@@ -465,11 +609,15 @@ export class MessageHandler {
     let message = `📅 ${event.name}\n\n`;
     message += `📅 Дата: ${date}\n`;
 
-    if (event.location) {
-      message += `📍 Место: ${event.location}\n`;
+    if (event.locations?.name) {
+      message += `📍 Место: ${event.locations.name}\n`;
     }
 
-    message += `👥 Количество участников: ${participantsCount}\n`;
+    message += `👥 Количество участников: ${participantsCount}`;
+    if (approximately) {
+      message += ` (примерно)`;
+    }
+    message += `\n`;
 
     if (teamName) {
       message += `🏆 Название команды: ${teamName}\n`;
@@ -482,18 +630,26 @@ export class MessageHandler {
       keyboard: Keyboards.getRegistrationConfirm(
         eventId,
         participantsCount,
-        teamName
+        teamName,
+        approximately
       ),
     });
   }
 
   // Зарегистрировать пользователя
-  async registerUser(context, eventId, participantsCount = 1, teamName = null) {
+  async registerUser(
+    context,
+    eventId,
+    participantsCount = 1,
+    teamName = null,
+    approximately = false
+  ) {
     const userInfo = {
       name: context.senderId, // В реальном проекте можно получить имя из профиля ВК
       phone: null,
       participantsCount: participantsCount,
       teamName: teamName,
+      approximately: approximately,
     };
 
     const result = await EventsService.registerUser(
@@ -547,8 +703,8 @@ export class MessageHandler {
     let message = `📅 ${event.name}\n\n`;
     message += `📅 Дата: ${date}\n`;
 
-    if (event.location) {
-      message += `📍 Место: ${event.location}\n`;
+    if (event.locations?.name) {
+      message += `📍 Место: ${event.locations.name}\n`;
     }
 
     message += `👥 Текущее количество участников: ${currentCount}\n`;
@@ -602,14 +758,16 @@ export class MessageHandler {
 
       message += `${index + 1}. ${event.name}\n`;
       message += `📅 ${date}\n`;
-      if (event.location) {
-        message += `📍 ${event.location}\n`;
+      if (event.locations?.name) {
+        message += `📍 ${event.locations.name}\n`;
       }
       if (event.host) {
         message += `👤 Ведущий: ${event.host}\n`;
       }
       if (event.price !== null && event.price !== undefined) {
-        message += `💰 Стоимость: ${EventsService.formatEventPrice(event.price)}\n`;
+        message += `💰 Стоимость: ${EventsService.formatEventPrice(
+          event.price
+        )}\n`;
       }
       message += `👥 Участников: ${participantsCount}\n`;
       if (teamName) {
